@@ -9,6 +9,7 @@ Build
 Usage
 -
 > xdup window-id
+
 You can obtain the window-id through xwininfo.
 
 Problems
