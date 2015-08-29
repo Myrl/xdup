@@ -1,2 +1,2 @@
 xdup: xdup.c
-	gcc -lxcb -lrt xdup.c -o xdup
+	gcc -lxcb -lrt -lxcb-damage xdup.c -o xdup

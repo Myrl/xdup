@@ -103,23 +103,19 @@ int main (int argc, char *argv[])
 
         notify_event = (xcb_damage_notify_event_t *) event;
 
-        printf("%i, %i, %i\n", notify_event->response_type, XCB_DAMAGE_NOTIFY, event->response_type == XCB_DAMAGE_NOTIFY);
+        if (event->response_type == (XCB_DAMAGE_NOTIFY + query_ext_reply->first_event)) {
+            get_window_size(connection, window, &size);
 
-        if (event->response_type == XCB_DAMAGE_NOTIFY) {
-            printf("DAMAGED\n");
+            xcb_copy_area(connection,
+                        source,
+                        window,
+                        graphics,
+                        0, 0,
+                        0, 0,
+                        size.width, size.height);
+
+            xcb_flush(connection);
         }
-
-        get_window_size(connection, window, &size);
-
-        //xcb_copy_area(connection,
-        //              source,
-        //              window,
-        //              graphics,
-        //              0, 0,
-        //              0, 0,
-        //              size.width, size.height);
-
-        xcb_flush(connection);
         free(event);
 
     }
