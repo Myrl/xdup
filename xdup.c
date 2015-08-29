@@ -8,6 +8,8 @@
 #include <inttypes.h>
 
 #include <xcb/xcb.h>
+#include <xcb/xcb_event.h>
+#include <xcb/damage.h>
 
 struct window_size
 {
@@ -34,21 +36,6 @@ int get_window_size(xcb_connection_t *connection,
     
     return 0;
 }
-
-int setup_timer()
-{
-    struct sigevent sevp;
-    sevp.sigev_notify = SIGEV_NONE;
-
-    struct itimerspec its = {{0, 16666666}, //60 Hz.
-                             {0, 16666666}};
-    int timerfd;
-    if ((timerfd = timerfd_create(CLOCK_REALTIME, 0)) > 0)
-        timerfd_settime(timerfd, 0, &its, NULL);
-
-    return timerfd;
-}
-
 
 int main (int argc, char *argv[])
 {
@@ -84,26 +71,57 @@ int main (int argc, char *argv[])
     xcb_create_gc(connection, graphics, screen->root, 0, NULL);
 
     xcb_map_window(connection, window);
+    
+    // Get the extension data.
+    const xcb_query_extension_reply_t *query_ext_reply =
+        xcb_get_extension_data(connection,
+                               &xcb_damage_id);
+    
+    // Query DAMAGE version
+    xcb_damage_query_version_cookie_t damage_version_cookie = 
+        xcb_damage_query_version(connection, 1, 1);
+
+    xcb_damage_query_version_reply_t *damage_version_reply =
+        xcb_damage_query_version_reply(connection,
+                                       damage_version_cookie,
+                                       NULL);
+
+    // Add our window as a DAMAGE object.
+    xcb_damage_damage_t damage_id = xcb_generate_id(connection);
+    xcb_void_cookie_t damage_create_cookie = 
+        xcb_damage_create(connection,
+                          damage_id,
+                          source,
+                          XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
+
     xcb_flush(connection);
 
-    int timerfd = setup_timer();
+    xcb_damage_notify_event_t *notify_event;
+    xcb_generic_event_t *event;
 
-    while (1) {
-        int64_t _;                    // Dummy buffer
-        read(timerfd, &_, sizeof(_)); // Block until timer expiry
+    while ( (event = xcb_wait_for_event(connection)) ) {
+
+        notify_event = (xcb_damage_notify_event_t *) event;
+
+        printf("%i, %i, %i\n", notify_event->response_type, XCB_DAMAGE_NOTIFY, event->response_type == XCB_DAMAGE_NOTIFY);
+
+        if (event->response_type == XCB_DAMAGE_NOTIFY) {
+            printf("DAMAGED\n");
+        }
 
         get_window_size(connection, window, &size);
 
-        xcb_copy_area(connection,
-                source,
-                window,
-                graphics,
-                0, 0,
-                0, 0,
-                size.width, size.height);
+        //xcb_copy_area(connection,
+        //              source,
+        //              window,
+        //              graphics,
+        //              0, 0,
+        //              0, 0,
+        //              size.width, size.height);
 
         xcb_flush(connection);
-    }
+        free(event);
 
+    }
     return 0;
 }
